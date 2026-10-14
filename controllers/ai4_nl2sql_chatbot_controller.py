@@ -123,3 +123,23 @@ def nl2sql_translate_and_execute(user_prompt: str) -> list[dict]:
     finally:
         if conn is not None:
             conn.close()
+if __name__ == '__main__':
+    test_prompt = "Tìm nick Liên Quân dưới 400k có skin Raz Muay Thai"
+    print("\n" + "=" * 50)
+    print(f"[TEST AI 4] Cau hoi kiem thu: '{test_prompt}'")
+    print("=" * 50)
+
+    try:
+        if 'nl2sql_translate_and_execute' in globals():
+            results = nl2sql_translate_and_execute(test_prompt)
+        elif 'ask_chatbot' in globals():
+            results = ask_chatbot(test_prompt)
+        else:
+            print("Khong tim thay ham chatbot phu hop trong file.")
+            results = []
+
+        print(f"\n[Ket qua CSDL]: Tim thay {len(results)} nick phu hop:")
+        for item in results:
+            print(f"- {item}")
+    except Exception as e:
+        print(f"Loi thuc thi: {e}")
