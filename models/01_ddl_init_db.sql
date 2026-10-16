@@ -69,3 +69,49 @@ CREATE TABLE IF NOT EXISTS ai_analytics.log_ai_ocr (
     confidence_score NUMERIC(3, 2),
     thoi_gian TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE quan_ly_shop.khach_hang
+ADD COLUMN IF NOT EXISTS ngay_cap_nhat TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+CREATE TABLE IF NOT EXISTS quan_ly_shop.danh_sach_yeu_thich (
+    ma_kh VARCHAR(10) REFERENCES quan_ly_shop.khach_hang ON DELETE CASCADE,
+    ma_nick VARCHAR(15) REFERENCES quan_ly_shop.tai_khoan_game ON DELETE CASCADE,
+    ngay_them TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (ma_kh, ma_nick)
+);
+CREATE TABLE IF NOT EXISTS quan_ly_shop.gio_hang (
+    ma_gio_hang SERIAL PRIMARY KEY,
+    ma_kh VARCHAR(10) NOT NULL REFERENCES quan_ly_shop.khach_hang ON DELETE CASCADE,
+    ma_nick VARCHAR(15) NOT NULL UNIQUE REFERENCES quan_ly_shop.tai_khoan_game ON DELETE CASCADE,
+    thoi_gian_tao TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    han_giu_cho TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '15 minutes')
+);
+CREATE TABLE IF NOT EXISTS quan_ly_shop.lich_su_nap_tien (
+    ma_giao_dich VARCHAR(40) PRIMARY KEY,
+    ma_kh VARCHAR(10) NOT NULL REFERENCES quan_ly_shop.khach_hang ON DELETE RESTRICT,
+    so_tien NUMERIC(15,2) NOT NULL CHECK (so_tien > 0),
+    phuong_thuc VARCHAR(20) NOT NULL CHECK (phuong_thuc IN ('SEPAY_QR', 'THE_CAO')),
+    thong_tin_giao_dich JSONB NOT NULL DEFAULT '{}'::jsonb,
+    trang_thai VARCHAR(20) NOT NULL DEFAULT 'Thanh_cong'
+        CHECK (trang_thai IN ('Cho_duyet','Thanh_cong','Tu_choi')),
+    ngay_tao TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+-- A redeemed mock card can never credit two customers/transactions.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_redeemed_card
+ON quan_ly_shop.lich_su_nap_tien ((thong_tin_giao_dich->>'card_fingerprint'))
+WHERE phuong_thuc = 'THE_CAO';
+
+CREATE TABLE IF NOT EXISTS ai_analytics.khach_hang_marketing (
+    ma_kh VARCHAR(10) PRIMARY KEY REFERENCES quan_ly_shop.khach_hang ON DELETE CASCADE,
+    churn_risk_score NUMERIC(5,2) CHECK (churn_risk_score BETWEEN 0 AND 100),
+    ma_voucher_tang VARCHAR(50),
+    ngay_tao DATE DEFAULT CURRENT_DATE
+);
+-- Local demo authentication: PBKDF2 password hashes, never plaintext passwords.
+CREATE TABLE IF NOT EXISTS quan_ly_shop.app_principals (
+    username VARCHAR(50) PRIMARY KEY,
+    password_hash TEXT NOT NULL,
+    app_role VARCHAR(10) NOT NULL CHECK (app_role IN ('admin','staff','user')),
+    ma_kh VARCHAR(10) REFERENCES quan_ly_shop.khach_hang ON DELETE RESTRICT,
+    CHECK ((app_role = 'user') = (ma_kh IS NOT NULL))
+);

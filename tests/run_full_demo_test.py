@@ -17,6 +17,11 @@ from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+import threading
+import tempfile
+
 
 
 def configure_output() -> None:
@@ -49,7 +54,9 @@ try:
     from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
     from psycopg2.extras import Json
 
-    from config.db_connection import get_db_connection
+    from config.db_connection import get_db_connection, transaction
+    from controllers import shop_service as shop
+    from controllers.ai3_fraud_guard_controller import check_and_lock_fraud
     from controllers import ai4_nl2sql_chatbot_controller as chatbot
 except ImportError as exc:
     safe_print(f"FAIL: thiếu dependency/module: {exc}")
@@ -309,41 +316,48 @@ class DemoSuite:
     def row_security(self):
         with self.conn.cursor() as cur:
             cur.execute('SET LOCAL ROLE "KhachHangRole"')
-            require(self.select_owned(cur) == [],
-                    "Role nhóm không có đơn nhưng thấy nick đã bán")
-            cur.execute("RESET ROLE")
-            cur.execute(sql.SQL("SET LOCAL ROLE {}").format(
-                sql.Identifier(self.customer)
-            ))
-            cur.execute("SELECT current_user")
-            require(cur.fetchone()[0] == self.customer,
-                    "current_user không khớp ma_kh")
+            cur.execute("SELECT set_config('app.current_user_id', %s, true)",
+                        (self.customer,))
             require(self.select_owned(cur) == [
-                (self.nicks["owned"], "test_password_" + self.nicks["owned"])
-            ], "RLS phải chỉ trả nick đã bán thuộc khách hiện tại")
-            # Explicitly verify the existing policy's unsold branch too.
-            cur.execute(
-                "SELECT ma_nick FROM quan_ly_shop.tai_khoan_game "
-                "WHERE ma_nick = %s", (self.nicks["match"],),
-            )
-            require(cur.fetchone() is not None,
-                    "Nhánh Chua_ban không hoạt động")
-        return "Nick đã bán: chỉ chủ đơn thấy; vẫn cho đọc nick Chua_ban"
+                (self.nicks['owned'], 'test_password_' + self.nicks['owned'])
+            ], 'RLS không phân biệt chủ đơn')
+            cur.execute('SELECT mat_khau_game FROM quan_ly_shop.tai_khoan_game '
+                        'WHERE ma_nick=%s', (self.nicks['match'],))
+            require(cur.fetchall() == [], 'Bảng gốc lộ mật khẩu nick chưa bán')
+            cur.execute('SELECT mat_khau_game,email_khoi_phuc FROM '
+                        'quan_ly_shop.vw_catalog_nick WHERE ma_nick=%s',
+                        (self.nicks['match'],))
+            require(cur.fetchone() == (None, None), 'Public view chưa mask pass')
+            cur.execute("SELECT set_config('app.current_user_id', %s, true)",
+                        (self.other_customer,))
+            require(self.select_owned(cur) == [
+                (self.nicks['other'], 'test_password_' + self.nicks['other'])
+            ], 'Ngữ cảnh khách thứ hai bị rò')
+        with transaction('KhachHangRole', self.customer) as leased:
+            with leased.cursor() as cur:
+                cur.execute("SELECT current_user")
+        with transaction() as leased, leased.cursor() as cur:
+            cur.execute("SELECT current_user=session_user, "
+                        "current_setting('app.current_user_id',true)")
+            same, setting = cur.fetchone()
+            require(same and setting in ('', None), 'Pool làm rò role/ma_kh')
+        return 'GUC identity, owner-only RLS, public NULL, pool reset: đúng'
 
     def fraud_lock(self):
-        with self.conn.cursor() as cur:
-            cur.execute(
-                "UPDATE quan_ly_shop.tai_khoan_game "
-                "SET trang_thai = 'Khoa_tranh_chap' WHERE ma_nick = %s",
-                (self.nicks["owned"],),
-            )
-            require(cur.rowcount == 1, "Không cập nhật được nick fixture")
-            cur.execute(sql.SQL("SET LOCAL ROLE {}").format(
-                sql.Identifier(self.customer)
-            ))
-            require(self.select_owned(cur) == [],
-                    "Nick tranh chấp vẫn hiện cho chủ đơn")
-        return "Nick chủ đơn bị ẩn hoàn toàn sau khóa; rollback sau test"
+        check_and_lock_fraud(self.nicks['owned'])
+        try:
+            with transaction('KhachHangRole', self.customer) as conn:
+                with conn.cursor() as cur:
+                    cur.execute('SELECT mat_khau_game FROM '
+                                'quan_ly_shop.tai_khoan_game WHERE ma_nick=%s',
+                                (self.nicks['owned'],))
+                    require(cur.fetchall() == [], 'AI3 chưa thu hồi credentials')
+        finally:
+            with transaction() as conn, conn.cursor() as cur:
+                cur.execute("UPDATE quan_ly_shop.tai_khoan_game SET "
+                            "trang_thai='Da_ban' WHERE ma_nick=%s",
+                            (self.nicks['owned'],))
+        return 'Đã gọi controller AI3 thật và kiểm chứng RLS'
 
     def explain(self, query, params=None, forced=False):
         with self.conn.cursor() as cur:
@@ -467,6 +481,313 @@ class DemoSuite:
             if listener is not None:
                 listener.close()
 
+    def staff_rbac(self):
+        self.denied_column('nhan_vien', 'luong')
+        self.conn.rollback()
+        self.denied_column('tai_khoan_game', 'mat_khau_game')
+        self.conn.rollback()
+        with self.conn.cursor() as cur:
+            cur.execute('SET LOCAL ROLE "NhanVienSale"')
+        for query in (
+            'DELETE FROM quan_ly_shop.tai_khoan_game WHERE false',
+            'UPDATE quan_ly_shop.khach_hang SET so_du_vi=0 WHERE false',
+            "UPDATE quan_ly_shop.tai_khoan_game SET mat_khau_game='bad' WHERE false",
+        ):
+            self.expect_error(query, None, errors.InsufficientPrivilege, '42501')
+        with self.conn.cursor() as cur:
+            cur.execute('UPDATE quan_ly_shop.tai_khoan_game SET gia_ban=gia_ban '
+                        'WHERE ma_nick=%s', (self.nicks['match'],))
+            require(cur.rowcount == 1, 'Staff không sửa được giá public')
+            self.insert_nick(cur, 's'+self.customer, 60000, 'Chua_ban', [])
+        return 'Sale bị cấm lương/pass/DELETE/ví; được INSERT và UPDATE giá'
+
+    def cart_business(self):
+        with transaction() as conn, conn.cursor() as cur:
+            cur.execute('UPDATE quan_ly_shop.khach_hang SET so_du_vi=1000000 '
+                        'WHERE ma_kh=ANY(%s)',
+                        ([self.customer, self.other_customer],))
+            cur.execute('INSERT INTO quan_ly_shop.danh_sach_yeu_thich '
+                        '(ma_kh,ma_nick) VALUES (%s,%s) ON CONFLICT DO NOTHING',
+                        (self.customer, self.nicks['match']))
+            cur.execute('SELECT count(*) FROM quan_ly_shop.danh_sach_yeu_thich '
+                        'WHERE ma_kh=%s AND ma_nick=%s',
+                        (self.customer, self.nicks['match']))
+            require(cur.fetchone()[0] == 1, 'Wishlist chưa được ghi')
+        barrier = threading.Barrier(2)
+        def compete(customer):
+            barrier.wait(timeout=5)
+            try:
+                shop.add_cart(customer, self.nicks['match'])
+                return customer
+            except shop.ShopError:
+                return None
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(compete, c) for c in
+                       (self.customer, self.other_customer)]
+            winners = [f.result(timeout=20) for f in futures]
+        require(sum(w is not None for w in winners) == 1,
+                'Race condition: phải đúng một người giữ được nick')
+        with transaction() as conn, conn.cursor() as cur:
+            cur.execute('SELECT EXTRACT(EPOCH FROM(han_giu_cho-thoi_gian_tao)) '
+                        'FROM quan_ly_shop.gio_hang WHERE ma_nick=%s',
+                        (self.nicks['match'],))
+            require(cur.fetchone()[0] == 900, 'Không giữ đúng 15 phút')
+            cur.execute("UPDATE quan_ly_shop.gio_hang SET han_giu_cho="
+                        "CURRENT_TIMESTAMP-INTERVAL '1 second' WHERE ma_nick=%s",
+                        (self.nicks['match'],))
+        shop.expire_cart()
+        shop.add_cart(self.customer, self.nicks['match'])
+        result = shop.checkout(self.customer)
+        require(result['total'] == 350000 and result['balance'] == 650000,
+                'Checkout sai tiền')
+        with transaction() as conn, conn.cursor() as cur:
+            cur.execute('SELECT count(*) FROM quan_ly_shop.don_hang_lich_su '
+                        'WHERE ma_nick=%s', (self.nicks['match'],))
+            require(cur.fetchone()[0] == 1, 'Không ghi lịch sử phân mảnh')
+        shop.add_cart(self.customer, self.nicks['expensive'])
+        with transaction() as conn, conn.cursor() as cur:
+            cur.execute('UPDATE quan_ly_shop.khach_hang SET so_du_vi=0 '
+                        'WHERE ma_kh=%s', (self.customer,))
+        try:
+            shop.checkout(self.customer)
+        except shop.ShopError:
+            pass
+        else:
+            raise AssertionError('Checkout cho phép mua khi thiếu tiền')
+        with transaction() as conn, conn.cursor() as cur:
+            cur.execute('SELECT count(*) FROM quan_ly_shop.don_hang '
+                        'WHERE ma_nick=%s', (self.nicks['expensive'],))
+            require(cur.fetchone()[0] == 0, 'Checkout lỗi vẫn tạo đơn')
+        shop.remove_cart(self.customer, self.nicks['expensive'])
+        return 'Wishlist, race 2 connections, TTL=900s, expiry, ACID checkout: đúng'
+
+    def wallet_business(self):
+        event = 'pay'+self.customer
+        result = shop.deposit(self.customer, 100000, 'SEPAY_QR', event,
+                              description='NAP '+self.customer)
+        require(not result['duplicate'], 'Giao dịch mới bị đánh dấu trùng')
+        require(shop.deposit(self.customer, 100000, 'SEPAY_QR', event,
+                             description='NAP '+self.customer)['duplicate'],
+                'Replay SePay chưa idempotent')
+        serial = '#GARENA*'+str(int(self.customer[1:],16)).zfill(8)[-8:]
+        card = '$CARD&'+str(int(self.customer[1:],16)).zfill(10)[-10:]
+        shop.deposit(self.customer, 50000, 'THE_CAO', 'card'+self.customer,
+                     serial=serial, card=card)
+        for args in (
+            (self.customer, 50000, 'THE_CAO', 'bad'+self.customer, 'wrong', card),
+            (self.other_customer, 50000, 'THE_CAO', 'dup'+self.customer, serial, card),
+        ):
+            try:
+                shop.deposit(*args)
+            except shop.ShopError:
+                pass
+            else:
+                raise AssertionError('Thẻ sai/trùng vẫn được nạp')
+        pending = 'pending'+self.customer
+        shop.deposit(self.customer, 20000, 'SEPAY_QR', pending,
+                     description='NPA '+self.customer)
+        shop.recheck_sepay(pending, self.customer)
+        require(shop.recheck_sepay(pending, self.customer)['duplicate'],
+                'Staff duyệt lặp gây cộng tiền lần hai')
+        with transaction() as conn, conn.cursor() as cur:
+            cur.execute('SELECT so_du_vi FROM quan_ly_shop.khach_hang '
+                        'WHERE ma_kh=%s', (self.customer,))
+            require(cur.fetchone()[0] == 170000, 'Sai số dư sau nạp và replay')
+        with transaction('NhanVienSale') as conn, conn.cursor() as cur:
+            cur.execute('SELECT * FROM quan_ly_shop.vw_lich_su_nap_staff '
+                        'WHERE ma_kh=%s', (self.customer,))
+            require(len(cur.fetchall()) == 3, 'View Staff thiếu giao dịch')
+            require({d.name for d in cur.description} == {
+                'ma_giao_dich','ma_kh','so_tien','phuong_thuc','trang_thai','ngay_tao'
+            }, 'View Staff làm lộ dữ liệu thẻ/số dư')
+        overflow_event = 'overflow'+self.customer
+        with transaction() as conn, conn.cursor() as cur:
+            cur.execute('UPDATE quan_ly_shop.khach_hang SET '
+                        'so_du_vi=9999999999999.99 WHERE ma_kh=%s',
+                        (self.customer,))
+        try:
+            try:
+                shop.deposit(self.customer, 10000, 'SEPAY_QR', overflow_event,
+                             description='NAP '+self.customer)
+            except errors.NumericValueOutOfRange:
+                pass
+            else:
+                raise AssertionError('Ví vượt precision vẫn được cộng tiền')
+            with transaction() as conn, conn.cursor() as cur:
+                cur.execute('SELECT count(*) FROM quan_ly_shop.lich_su_nap_tien '
+                            'WHERE ma_giao_dich=%s', (overflow_event,))
+                require(cur.fetchone()[0] == 0, 'Nạp lỗi vẫn ghi ledger thành công')
+        finally:
+            with transaction() as conn, conn.cursor() as cur:
+                cur.execute('UPDATE quan_ly_shop.khach_hang SET so_du_vi=170000 '
+                            'WHERE ma_kh=%s', (self.customer,))
+        return 'SePay/thẻ/replay/ACID rollback; ví=170000; view Staff 6 cột'
+
+    def api_regressions(self):
+        from fastapi.testclient import TestClient
+        from app import app
+        from config.auth import hash_password
+        from controllers.etl_cleaner_controller import etl_clean_customers
+        from controllers import ai1_vision_ocr_controller as ocr
+        from controllers.ai6_reconcile_controller import reconcile_assistant
+        from controllers.ai7_dba_optimizer_controller import diagnostics
+        from controllers.ai8_dispute_controller import evaluate_dispute
+        from controllers import ai2_pricing_controller as ai2
+        from controllers import ai5_marketing_controller as ai5
+        password = uuid.uuid4().hex
+        with transaction() as conn, conn.cursor() as cur:
+            cur.execute('INSERT INTO quan_ly_shop.app_principals '
+                        '(username,password_hash,app_role,ma_kh) VALUES '
+                        '(%s,%s,%s,%s),(%s,%s,%s,NULL),(%s,%s,%s,NULL)',
+                        (self.customer, hash_password(password),'user',self.customer,
+                         'a'+self.customer,hash_password(password),'admin',
+                         's'+self.customer,hash_password(password),'staff'))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'customer.csv'
+            path.write_text('ma_kh,ho_ten,so_dien_thoai,so_du_vi\n'+
+                            self.customer+', updated name ,0901234567,0\n',
+                            encoding='utf-8')
+            require(etl_clean_customers(path)['loaded'] == 1, 'ETL thất bại')
+        with transaction() as conn, conn.cursor() as cur:
+            cur.execute('SELECT so_du_vi FROM quan_ly_shop.khach_hang '
+                        'WHERE ma_kh=%s', (self.customer,))
+            require(cur.fetchone()[0] == 170000, 'ETL ghi đè tiền ví')
+            cur.execute("UPDATE quan_ly_shop.tai_khoan_game SET "
+                        "thong_tin_chi_tiet=jsonb_build_object('ngay_nhap_kho',"
+                        "(CURRENT_DATE-40)::text),gia_ban=51000 WHERE ma_nick=%s",
+                        (self.nicks['wrong_skin'],))
+        # Isolate OCR inference for this DB merge regression, not an OCR accuracy test.
+        with patch.object(ocr, 'extract_game_data', return_value={'Rank':'TEST'}):
+            ocr.process_game_screenshot(self.nicks['wrong_skin'],
+                                        'https://example.com/image.png',self.game)
+        with self.conn.cursor() as cur:
+            cur.execute('SELECT quan_ly_shop.fn_giam_gia_nick_ton_kho()')
+            cur.execute("SELECT gia_ban,thong_tin_chi_tiet->>'ngay_nhap_kho' "
+                        'FROM quan_ly_shop.tai_khoan_game WHERE ma_nick=%s',
+                        (self.nicks['wrong_skin'],))
+            price, imported = cur.fetchone()
+            require(price == 50000 and imported, 'Sai sàn giá/merge OCR')
+        self.conn.rollback()  # No persistent discount to unrelated inventory.
+        @contextmanager
+        def isolated_transaction(*args, **kwargs):
+            yield self.conn
+        with patch.object(ai2, 'transaction', isolated_transaction):
+            require('message' in ai2.run_pricing(), 'Controller AI2 lỗi')
+        self.conn.rollback()
+        with self.conn.cursor() as cur:
+            # Existing recent purchase is moved back inside this rolled-back test.
+            cur.execute("UPDATE quan_ly_shop.don_hang_lich_su SET ngay_tao="
+                        "CURRENT_TIMESTAMP-INTERVAL '70 days' WHERE ma_kh=%s",
+                        (self.customer,))
+        with patch.object(ai5, 'transaction', isolated_transaction):
+            vouchers = ai5.run_marketing()
+            require(any(row['ma_kh'] == self.customer and
+                        row['voucher'] == 'TRIAN20PCT' for row in vouchers),
+                    'AI5 chưa cấp voucher cho khách >60 ngày')
+        self.conn.rollback()
+        require(reconcile_assistant('NAP '+self.customer)['automatic_credit'] is False,
+                'AI6 tự ý cộng tiền')
+        require(isinstance(diagnostics(), list), 'AI7 thiếu diagnostics')
+        require(evaluate_dispute(self.nicks['owned'],5,True,True)
+                ['recommend_refund'], 'AI8 không đề xuất cho điểm cao')
+        client = TestClient(app)  # No lifespan workers during isolated API tests.
+        try:
+            require(client.get('/api/user/cart').status_code == 401,
+                    'API thiếu xác thực')
+            client.cookies.clear()  # Independent bearer sessions for each role.
+            response = client.post('/api/auth/login', json={
+                'username':self.customer,'password':password})
+            require(response.status_code == 200, 'Đăng nhập user thất bại')
+            headers = {'Authorization':'Bearer '+response.json()['token']}
+            require(client.get('/api/accounts/'+self.nicks['owned']+
+                               '/credentials',headers=headers).status_code == 200,
+                    'API RLS không trả credentials chủ đơn')
+            require(client.get('/api/accounts/'+self.nicks['other']+
+                               '/credentials',headers=headers).status_code == 403,
+                    'API lộ credentials khách khác')
+            require(client.post('/api/admin/run-etl',headers=headers).status_code == 403,
+                    'User gọi được API admin')
+            require(client.get('/api/user/profile/'+self.other_customer,
+                               headers=headers).status_code == 403, 'API IDOR profile')
+            root = client.get('/')
+            require(root.status_code == 200 and
+                    root.headers['content-type'].startswith('text/html') and
+                    '<!doctype html>' in root.text.lower(), 'Sai MIME/HTML trang chủ')
+            for page in ('/staff.html','/admin.html'):
+                require(client.get(page, follow_redirects=False).status_code == 403,
+                        'Role User đọc được trang nội bộ '+page)
+            public = client.get('/api/accounts').json()
+            require(all(n['mat_khau_game'] is None for n in public),
+                    'API public lộ mật khẩu')
+            client.cookies.clear()  # Independent bearer sessions for each role.
+            response = client.post('/api/auth/login', json={
+                'username':'a'+self.customer,'password':password})
+            admin = {'Authorization':'Bearer '+response.json()['token']}
+            require(client.delete('/api/admin/accounts/'+self.nicks['owned']+
+                                  '/delete',headers=admin).status_code == 409,
+                    'API DELETE không trả lỗi RESTRICT')
+            require(client.get('/api/admin/ai7-diagnostics',headers=admin)
+                    .status_code == 200, 'API AI7 lỗi')
+            client.cookies.clear()  # Independent bearer sessions for each role.
+            response = client.post('/api/auth/login', json={
+                'username':'s'+self.customer,'password':password})
+            require(response.status_code == 200, 'Đăng nhập Staff thất bại')
+            staff = {'Authorization':'Bearer '+response.json()['token']}
+            self.nicks['api_created'] = 'api'+self.customer[1:]
+            nick = self.nicks['api_created']
+            response = client.post('/api/accounts/create',headers=staff,json={
+                'ma_nick':nick,'ma_game':self.game,'gia_ban':60000,
+                'thong_tin_chi_tiet':{'ngay_nhap_kho':'2026-01-01'}})
+            require(response.status_code == 200, 'API Staff INSERT lỗi')
+            require(client.put('/api/accounts/'+nick+'/update',headers=staff,
+                               json={'gia_ban':65000}).status_code == 200,
+                    'API Staff UPDATE giá lỗi')
+            require(client.put('/api/accounts/'+nick+'/update',headers=staff,
+                               json={'mat_khau_game':'forbidden'})
+                    .status_code == 403, 'Staff API sửa được pass')
+            require(client.delete('/api/admin/accounts/'+nick+'/delete',
+                                  headers=staff).status_code == 403,
+                    'Staff API xóa được nick')
+            with patch.object(ocr, 'extract_game_data',
+                              return_value={'Rank':'API_OCR'}):
+                response = client.post('/api/accounts/'+nick+'/ocr',
+                                       headers=staff,
+                                       json={'image_url':'https://example.com/x'})
+                require(response.status_code == 200, 'API Staff OCR merge lỗi')
+            staff_rows = client.get('/api/staff/transactions',headers=staff)
+            require(staff_rows.status_code == 200 and all(
+                set(item) == {'ma_giao_dich','ma_kh','so_tien','phuong_thuc',
+                              'trang_thai','ngay_tao'}
+                for item in staff_rows.json()), 'API Staff lộ dữ liệu nhạy cảm')
+            event = 'http'+self.customer
+            body = {'event_id':event,'amount':'10000',
+                    'description':'NAP '+self.customer}
+            require(client.post('/api/user/deposit/sepay',headers=headers,
+                                json=body).status_code == 200,
+                    'API SePay lỗi')
+            replay = client.post('/api/user/deposit/sepay',headers=headers,json=body)
+            require(replay.status_code == 200 and replay.json()['duplicate'],
+                    'API SePay replay lỗi')
+            require(client.post('/api/user/cart/add',headers=headers,
+                                json={'ma_nick':nick}).status_code == 200,
+                    'API thêm giỏ lỗi')
+            require(client.post('/api/user/cart/checkout',headers=headers)
+                    .status_code == 200, 'API checkout lỗi')
+            require(client.get('/api/accounts/'+nick+'/credentials',
+                               headers=headers).status_code == 200,
+                    'API credentials sau checkout lỗi')
+            transactions = client.get('/api/user/transactions/'+self.customer,
+                                      headers=headers)
+            require(transactions.status_code == 200 and
+                    any(r['ma_gd'] == event for r in transactions.json()),
+                    'API lịch sử ví thiếu giao dịch')
+            require(client.get('/api/user/transaction-detail/'+event,
+                               headers=headers).status_code == 200,
+                    'API biên lai lỗi')
+        finally:
+            client.close()
+        return 'API auth/RLS/IDOR/static/FK; ETL ví, OCR merge, sàn giá, AI6/7/8: đúng'
+
     def cleanup(self):
         if self.conn is None:
             return "Chưa tạo fixture"
@@ -479,6 +800,18 @@ class DemoSuite:
                 "DELETE FROM ai_analytics.log_ai_ocr WHERE ma_nick = ANY(%s)",
                 (list(self.nicks.values()),),
             )
+            cur.execute('DELETE FROM quan_ly_shop.app_principals '
+                        'WHERE ma_kh=ANY(%s) OR username=ANY(%s)',
+                        ([self.customer, self.other_customer],
+                         ['a'+self.customer, 's'+self.customer]))
+            cur.execute('DELETE FROM quan_ly_shop.don_hang_lich_su '
+                        'WHERE ma_kh=ANY(%s)',
+                        ([self.customer, self.other_customer],))
+            cur.execute('DELETE FROM quan_ly_shop.lich_su_nap_tien '
+                        'WHERE ma_kh=ANY(%s)',
+                        ([self.customer, self.other_customer],))
+            cur.execute('DELETE FROM quan_ly_shop.don_hang WHERE ma_kh=ANY(%s)',
+                        ([self.customer, self.other_customer],))
             cur.execute("DELETE FROM quan_ly_shop.don_hang "
                         "WHERE ma_dh = ANY(%s)", (self.orders,))
             cur.execute("DELETE FROM quan_ly_shop.tai_khoan_game "
@@ -506,9 +839,10 @@ class DemoSuite:
             status = "PASS" if result.passed else "FAIL"
             safe_print(f"{result.name:<66} | {status:^10} | "
                        f"{result.elapsed:>8.3f}s")
-        passed = sum(result.passed for result in self.results)
-        safe_print(f"\nTổng: {passed}/{len(self.results)} PASS; "
-                   f"{len(self.results) - passed} FAIL")
+        business = [r for r in self.results if r.name[:1].isdigit()]
+        passed = sum(r.passed for r in business)
+        safe_print(f"\nNghiệp vụ: {passed}/{len(business)} PASS; "
+                   f"{len(business) - passed} FAIL")
         return 0 if all(result.passed for result in self.results) else 1
 
     def run(self):
@@ -516,18 +850,18 @@ class DemoSuite:
         safe_print("DB thử nghiệm: đã chạy models/01..04; .env: superuser.")
         safe_print("Tắt listener OCR bên ngoài trước khi chạy suite.")
         tests = [
-            ("1.1 Regex SĐT / 23514", self.invalid_phone),
-            ("1.2 Giá âm / 23514", self.negative_price),
-            ("1.3 FK RESTRICT / 23503", self.restricted_delete),
-            ("2.1a Sale bị cấm đọc luong / 42501",
-             lambda: self.denied_column("nhan_vien", "luong")),
-            ("2.1b Sale bị cấm đọc mat_khau_game / 42501",
-             lambda: self.denied_column("tai_khoan_game", "mat_khau_game")),
-            ("2.2 RLS / nick đã mua", self.row_security),
-            ("2.3 Fraud Guard / ẩn nick tranh chấp", self.fraud_lock),
-            ("3.1 Partial Index / execution plan", self.partial_index),
-            ("3.2 AI4 NL2SQL & GIN / JSONB @>", self.gin_and_chatbot),
-            ("4 LISTEN/NOTIFY / event và ma_nick", self.notification),
+            ('1 Regex SĐT / 23514', self.invalid_phone),
+            ('2 Giá âm / 23514', self.negative_price),
+            ('3 FK RESTRICT / 23503', self.restricted_delete),
+            ('4 Staff RBAC / cột & CRUD', self.staff_rbac),
+            ('5 RLS / ownership, masking, pool', self.row_security),
+            ('6 AI3 khóa tranh chấp / RLS', self.fraud_lock),
+            ('7 Partial Index / execution plan', self.partial_index),
+            ('8 AI4 NL2SQL & GIN / JSONB', self.gin_and_chatbot),
+            ('9 LISTEN/NOTIFY / real socket', self.notification),
+            ('10 Wishlist & Cart / 15p, race, checkout', self.cart_business),
+            ('11 Wallet / SePay, thẻ, ACID, Staff view', self.wallet_business),
+            ('12 API/Auth & ETL/OCR/Pricing/AI regressions', self.api_regressions),
         ]
         ready = False
         interrupted = False

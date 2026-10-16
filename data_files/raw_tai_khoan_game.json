@@ -1,0 +1,53 @@
+[
+  {
+    "ma_nick": "DEMO_LQ1",
+    "ma_game": "G_LQ",
+    "ten_game": "Liên Quân Mobile",
+    "gia_ban": 350000,
+    "thong_tin_chi_tiet": {
+      "Rank": "Cao Thủ",
+      "SkinHiem": [
+        "Raz Muay Thai"
+      ],
+      "ngay_nhap_kho": "2026-08-01"
+    }
+  },
+  {
+    "ma_nick": "DEMO_LQ2",
+    "ma_game": "G_LQ",
+    "ten_game": "Liên Quân Mobile",
+    "gia_ban": 250000,
+    "thong_tin_chi_tiet": {
+      "Rank": "Tinh Anh",
+      "SkinHiem": [
+        "Raz Muay Thai",
+        "Violet Thứ Nguyên Vệ Thần"
+      ],
+      "ngay_nhap_kho": "2026-08-01"
+    }
+  },
+  {
+    "ma_nick": "DEMO_FF1",
+    "ma_game": "G_FF",
+    "ten_game": "Free Fire",
+    "gia_ban": 150000,
+    "thong_tin_chi_tiet": {
+      "Rank": "Huyền Thoại",
+      "VuKhi": [
+        "AK Rồng Xanh"
+      ]
+    }
+  },
+  {
+    "ma_nick": "DEMO_FC1",
+    "ma_game": "G_FC",
+    "ten_game": "FC Online",
+    "gia_ban": 500000,
+    "thong_tin_chi_tiet": {
+      "Rank": "Siêu Sao",
+      "DoiHinh": [
+        "Real Madrid"
+      ]
+    }
+  }
+]

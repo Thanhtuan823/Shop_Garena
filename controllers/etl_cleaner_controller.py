@@ -24,8 +24,7 @@ UPSERT_SQL = """
     VALUES (%s, %s, %s, %s)
     ON CONFLICT (ma_kh) DO UPDATE SET
         ho_ten = EXCLUDED.ho_ten,
-        so_dien_thoai = EXCLUDED.so_dien_thoai,
-        so_du_vi = EXCLUDED.so_du_vi
+        ngay_cap_nhat = CURRENT_TIMESTAMP
 """
 
 

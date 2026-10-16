@@ -48,7 +48,7 @@ def handle_notification(payload: str, conn=None) -> None:
     process_game_screenshot(data["ma_nick"], image_url, data["ma_game"])
 
 
-def listen_for_new_nicks() -> None:
+def listen_for_new_nicks(stop_event=None) -> None:
     """Block until interrupted; an individual OCR failure keeps listening."""
     conn = None
     try:
@@ -57,7 +57,7 @@ def listen_for_new_nicks() -> None:
         with conn.cursor() as cursor:
             cursor.execute("LISTEN kenh_ai_garena;")
         LOGGER.info("Đang lắng nghe kenh_ai_garena")
-        while True:
+        while stop_event is None or not stop_event.is_set():
             readable, _, _ = select.select([conn], [], [], 5)
             if not readable:
                 continue

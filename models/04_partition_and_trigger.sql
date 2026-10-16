@@ -20,15 +20,15 @@ FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
 
 -- Call explicitly or from a scheduler. Each call discounts eligible rows again.
 -- Invalid/missing dates are skipped; the minimum price respects gia_ban > 0.
-CREATE OR REPLACE FUNCTION quan_ly_shop.fn_ai_tu_dong_ha_gia_ton_kho()
+CREATE OR REPLACE FUNCTION quan_ly_shop.fn_giam_gia_nick_ton_kho()
 RETURNS void
 LANGUAGE plpgsql
 SET search_path = pg_catalog, quan_ly_shop
 AS $function$
 BEGIN
     UPDATE quan_ly_shop.tai_khoan_game
-    SET gia_ban = greatest(1000::numeric, round(gia_ban * 0.95 / 1000) * 1000)
-    WHERE trang_thai = 'Chua_ban'
+    SET gia_ban = greatest(50000::numeric, round(gia_ban * 0.95 / 1000) * 1000)
+    WHERE trang_thai = 'Chua_ban' AND gia_ban > 50000
       AND CASE
           WHEN pg_input_is_valid(thong_tin_chi_tiet ->> 'ngay_nhap_kho', 'date')
           THEN (thong_tin_chi_tiet ->> 'ngay_nhap_kho')::date
@@ -36,6 +36,12 @@ BEGIN
       END < CURRENT_DATE - 30;
 END;
 $function$;
+
+-- Compatibility with the earlier controller/function name.
+CREATE OR REPLACE FUNCTION quan_ly_shop.fn_ai_tu_dong_ha_gia_ton_kho()
+RETURNS void LANGUAGE sql AS $$
+    SELECT quan_ly_shop.fn_giam_gia_nick_ton_kho();
+$$;
 
 CREATE OR REPLACE FUNCTION quan_ly_shop.fn_notify_ai_nick_moi()
 RETURNS trigger

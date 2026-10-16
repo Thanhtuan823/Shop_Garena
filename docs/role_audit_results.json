@@ -1,0 +1,350 @@
+[
+  {
+    "role": "BASELINE",
+    "test": "Existing business suite",
+    "passed": true,
+    "detail": "12/12 business groups"
+  },
+  {
+    "role": "GUEST",
+    "test": "Only Chua_ban in public catalog",
+    "passed": true,
+    "detail": "Statuses returned: ['Chua_ban']"
+  },
+  {
+    "role": "GUEST",
+    "test": "Public credentials masked",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "GUEST",
+    "test": "Protected API denies anonymous",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "GUEST",
+    "test": "Internal pages redirect/deny",
+    "passed": true,
+    "detail": "{'/staff.html': 303, '/admin.html': 303}; this is shell exposure, not protected API data access"
+  },
+  {
+    "role": "USER",
+    "test": "Insufficient funds rolls back",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "GUEST",
+    "test": "UI login gate heart",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "GUEST",
+    "test": "UI login gate cart",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "GUEST",
+    "test": "UI deposit login gate",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "GUEST",
+    "test": "AI4 browser chat",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "Profile displays customer id",
+    "passed": true,
+    "detail": "Header: user · user · KH_DEMO"
+  },
+  {
+    "role": "USER",
+    "test": "QR parameters and deposit modal",
+    "passed": true,
+    "detail": "URL checked; external QR image deliberately not fetched"
+  },
+  {
+    "role": "USER",
+    "test": "SePay UI updates wallet immediately",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "SePay replay idempotency",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "Invalid card red API error",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "Valid card credits denomination",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "Wishlist toggle persists",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "Cart countdown visible",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "Held nick hidden from other visitors",
+    "passed": true,
+    "detail": "Catalog hides held nick while owner cart retains countdown"
+  },
+  {
+    "role": "USER",
+    "test": "Checkout state and wallet",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "Owned credentials modal",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "Unowned credentials denied",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "History filters and receipt dialogs",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "UI",
+    "test": "Client no horizontal overflow 1440",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "UI",
+    "test": "Client no horizontal overflow 390",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "Credentials cleared on logout",
+    "passed": true,
+    "detail": "Closed/logged-out DOM empty; delayed private response discarded"
+  },
+  {
+    "role": "STAFF",
+    "test": "No delete/password controls",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "STAFF",
+    "test": "OCR button accepts pasted image URL",
+    "passed": true,
+    "detail": "Real HTTPS download + EasyOCR; status=200"
+  },
+  {
+    "role": "STAFF",
+    "test": "Actual upload OCR -> JSONB",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "STAFF",
+    "test": "OCR refreshes editable JSONB",
+    "passed": true,
+    "detail": "Editable JSONB must contain the freshly extracted skin"
+  },
+  {
+    "role": "STAFF",
+    "test": "Saving after OCR preserves extracted data",
+    "passed": true,
+    "detail": "Before save SkinHiem=['Raz Muay Thai']; after=['Raz Muay Thai']"
+  },
+  {
+    "role": "STAFF",
+    "test": "Sanitized reconciliation view",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "STAFF",
+    "test": "Lookup filter by customer/transaction",
+    "passed": true,
+    "detail": "API negative filter returns empty; UI finds exact customer/event"
+  },
+  {
+    "role": "STAFF",
+    "test": "AI6 fuzzy UI suggestions",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "UI",
+    "test": "Staff no horizontal overflow 1440",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "UI",
+    "test": "Staff no horizontal overflow 390",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "STAFF",
+    "test": "Reconciliation cleared on logout",
+    "passed": true,
+    "detail": "No prior reconciliation rows may remain after logout"
+  },
+  {
+    "role": "ADMIN",
+    "test": "Eight AI cards in central UI",
+    "passed": true,
+    "detail": "Tools buttons=10; AI1..8 cards available in Admin"
+  },
+  {
+    "role": "ADMIN",
+    "test": "Editor exposes all mutable columns",
+    "passed": true,
+    "detail": "Supplier field ma_ncc is editable through UI/API"
+  },
+  {
+    "role": "UI",
+    "test": "Admin no horizontal overflow 1440",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "UI",
+    "test": "Admin no horizontal overflow 390",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "UI",
+    "test": "No uncaught browser JavaScript exceptions",
+    "passed": true,
+    "detail": "[]"
+  },
+  {
+    "role": "STAFF",
+    "test": "DB deny SELECT",
+    "passed": true,
+    "detail": "SQLSTATE=42501; SELECT luong FROM quan_ly_shop.nhan_vien"
+  },
+  {
+    "role": "STAFF",
+    "test": "DB deny SELECT",
+    "passed": true,
+    "detail": "SQLSTATE=42501; SELECT mat_khau_game FROM quan_ly_shop.tai_khoan_game"
+  },
+  {
+    "role": "STAFF",
+    "test": "DB deny DELETE",
+    "passed": true,
+    "detail": "SQLSTATE=42501; DELETE FROM quan_ly_shop.tai_khoan_game WHERE false"
+  },
+  {
+    "role": "STAFF",
+    "test": "DB deny UPDATE",
+    "passed": true,
+    "detail": "SQLSTATE=42501; UPDATE quan_ly_shop.khach_hang SET so_du_vi=0 WHERE false"
+  },
+  {
+    "role": "STAFF",
+    "test": "DELETE API denied",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "STAFF",
+    "test": "Password UPDATE API denied",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "STAFF",
+    "test": "SePay manual reconcile idempotent",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "ADMIN",
+    "test": "Create/update credentials/delete unsold/FK sold",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "ADMIN",
+    "test": "ETL CSV validation",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "ADMIN",
+    "test": "AI2 floor 50000 and aged inventory",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "ADMIN",
+    "test": "AI3 revokes paid credentials",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "ADMIN",
+    "test": "AI5 churn voucher",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "ADMIN",
+    "test": "AI7 diagnostics and VACUUM",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "ADMIN",
+    "test": "AI8 risk >80 proposes full refund",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "ADMIN",
+    "test": "Terminal HTTP action logs",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "ADMIN",
+    "test": "Actor-attributed audit trail for each action",
+    "passed": true,
+    "detail": "Authenticated actor, role, request_id, method, target and status"
+  }
+]

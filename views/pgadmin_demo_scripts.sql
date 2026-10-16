@@ -16,7 +16,7 @@
 RESET ROLE;
 BEGIN;
 
--- Policy dùng ma_kh = current_user. Role khách cá nhân cần tên khớp ma_kh.
+-- Policy dùng app.current_user_id; backend xác thực trước khi đặt GUC.
 -- NOLOGIN đủ cho SET ROLE khi demo; không cấp mật khẩu đăng nhập thực.
 DO $demo_roles$
 BEGIN
@@ -109,14 +109,15 @@ SELECT ma_nick, trang_thai, mat_khau_game
 FROM quan_ly_shop.tai_khoan_game
 WHERE ma_nick IN ('demo_owned', 'demo_other', 'demo_unsold')
 ORDER BY ma_nick;
--- Kỳ vọng CHỈ demo_unsold. current_user = 'KhachHangRole' không khớp mã khách.
--- Không thể tạo ma_kh = 'KhachHangRole' vì cột ma_kh chỉ VARCHAR(10).
--- Policy hiện tại cho đọc mật khẩu nick Chua_ban; đây là hành vi của model,
--- không phải cơ chế "chỉ chủ đơn được xem" đối với mọi trạng thái.
+-- Chưa đặt app.current_user_id: kỳ vọng 0 dòng, kể cả demo_unsold.
+SELECT ma_nick, mat_khau_game FROM quan_ly_shop.vw_catalog_nick
+WHERE ma_nick = 'demo_unsold';
+-- Public view trả mat_khau_game NULL; không lộ mật khẩu nick chưa bán.
 
--- 2C. Chạy khối này: role cá nhân kế thừa quyền nhóm, tên khớp mã khách.
+-- 2C. Chạy khối này: mô phỏng danh tính khách đã được backend xác thực.
 RESET ROLE;
-SET ROLE kh_demo01;
+SET ROLE "KhachHangRole";
+SET app.current_user_id = 'kh_demo01';
 SELECT current_user, session_user;
 SELECT ma_nick, trang_thai, mat_khau_game
 FROM quan_ly_shop.tai_khoan_game
@@ -131,7 +132,8 @@ UPDATE quan_ly_shop.tai_khoan_game
 SET trang_thai = 'Khoa_tranh_chap' WHERE ma_nick = 'demo_owned';
 
 -- Chạy khối này: dù là chủ đơn, khách không thấy nick đang tranh chấp.
-SET ROLE kh_demo01;
+SET ROLE "KhachHangRole";
+SET app.current_user_id = 'kh_demo01';
 SELECT ma_nick, trang_thai, mat_khau_game
 FROM quan_ly_shop.tai_khoan_game WHERE ma_nick = 'demo_owned';
 -- Kỳ vọng 0 dòng. RLS lọc dòng; không tự mã hóa/giải mã cột mật khẩu.
@@ -196,8 +198,8 @@ COMMIT;
 --
 -- 4A. Chạy CẢ KHỐI: mỗi lần sinh mã mới <= 15 ký tự để INSERT luôn phát event.
 -- Notification chỉ được gửi sau COMMIT, không phải ngay khi trigger chạy.
--- URL dưới đây là placeholder; thay bằng ảnh thật khi OCR xử lý ảnh thực tế.
--- Controller OCR hiện có là mock và có thể cập nhật JSONB sau khi nhận event.
+-- URL dưới đây là placeholder; thay bằng ảnh HTTPS thật để chạy EasyOCR.
+-- Thiếu ảnh hợp lệ sẽ báo lỗi OCR, không tạo dữ liệu nhận diện giả.
 RESET ROLE;
 BEGIN;
 INSERT INTO quan_ly_shop.tai_khoan_game (
@@ -223,3 +225,5 @@ FROM ai_analytics.log_ai_ocr ORDER BY id DESC LIMIT 5;
 
 -- Kết thúc demo, luôn trả session về role ban đầu.
 RESET ROLE;
+
+RESET app.current_user_id;
