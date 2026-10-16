@@ -1,0 +1,230 @@
+[
+  {
+    "role": "BASELINE",
+    "test": "Existing business suite",
+    "passed": false,
+    "detail": "See baseline.log"
+  },
+  {
+    "role": "GUEST",
+    "test": "Only Chua_ban in public catalog",
+    "passed": true,
+    "detail": "Statuses returned: ['Chua_ban']"
+  },
+  {
+    "role": "GUEST",
+    "test": "Public credentials masked",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "GUEST",
+    "test": "Protected API denies anonymous",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "GUEST",
+    "test": "Internal pages redirect/deny",
+    "passed": true,
+    "detail": "{'/staff.html': 303, '/admin.html': 303}; this is shell exposure, not protected API data access"
+  },
+  {
+    "role": "USER",
+    "test": "Insufficient funds rolls back",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "GUEST",
+    "test": "UI login gate heart",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "GUEST",
+    "test": "UI login gate cart",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "GUEST",
+    "test": "UI deposit login gate",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "GUEST",
+    "test": "AI4 browser chat",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "Profile displays customer id",
+    "passed": true,
+    "detail": "Header: user · user · KH_DEMO"
+  },
+  {
+    "role": "USER",
+    "test": "QR parameters and deposit modal",
+    "passed": true,
+    "detail": "URL checked; external QR image deliberately not fetched"
+  },
+  {
+    "role": "USER",
+    "test": "SePay UI updates wallet immediately",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "SePay replay idempotency",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "Invalid card red API error",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "Valid card credits denomination",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "Wishlist toggle persists",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "Cart countdown visible",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "Held nick hidden from other visitors",
+    "passed": true,
+    "detail": "Catalog hides held nick while owner cart retains countdown"
+  },
+  {
+    "role": "USER",
+    "test": "Checkout state and wallet",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "Owned credentials modal",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "Unowned credentials denied",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "History filters and receipt dialogs",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "UI",
+    "test": "Client no horizontal overflow 1440",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "UI",
+    "test": "Client no horizontal overflow 390",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "USER",
+    "test": "Credentials cleared on logout",
+    "passed": true,
+    "detail": "Closed/logged-out DOM empty; delayed private response discarded"
+  },
+  {
+    "role": "STAFF",
+    "test": "No delete/password controls",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "STAFF",
+    "test": "OCR button accepts pasted image URL",
+    "passed": true,
+    "detail": "Real HTTPS download + EasyOCR; status=200"
+  },
+  {
+    "role": "STAFF",
+    "test": "Actual upload OCR -> JSONB",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "STAFF",
+    "test": "OCR refreshes editable JSONB",
+    "passed": true,
+    "detail": "Editable JSONB must contain the freshly extracted skin"
+  },
+  {
+    "role": "STAFF",
+    "test": "Saving after OCR preserves extracted data",
+    "passed": true,
+    "detail": "Before save SkinHiem=['Raz Muay Thai']; after=['Raz Muay Thai']"
+  },
+  {
+    "role": "STAFF",
+    "test": "Sanitized reconciliation view",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "STAFF",
+    "test": "Lookup filter by customer/transaction",
+    "passed": true,
+    "detail": "API negative filter returns empty; UI finds exact customer/event"
+  },
+  {
+    "role": "STAFF",
+    "test": "AI6 fuzzy UI suggestions",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "UI",
+    "test": "Staff no horizontal overflow 1440",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "UI",
+    "test": "Staff no horizontal overflow 390",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "role": "STAFF",
+    "test": "Reconciliation cleared on logout",
+    "passed": false,
+    "detail": "No prior reconciliation rows may remain after logout"
+  },
+  {
+    "role": "HARNESS",
+    "test": "Audit completed",
+    "passed": false,
+    "detail": "Error: Page.goto: Navigation to \"http://127.0.0.1:8137/admin.html\" is interrupted by another navigation to \"http://127.0.0.1:8137/\"\nCall log:\n  - navigating to \"http://127.0.0.1:8137/admin.html\", waiting until \"networkidle\"\n"
+  }
+]

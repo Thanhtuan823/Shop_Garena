@@ -19,18 +19,19 @@ from psycopg2 import sql
 from psycopg2.extras import Json, RealDictCursor
 
 from config.auth import current_user, hash_password, login, logout, roles, session_user
-from config.db_connection import transaction
+from config.database import transaction
 from controllers import shop_service as shop
-from controllers.ai1_vision_ocr_controller import process_game_screenshot
-from controllers.ai2_pricing_controller import run_pricing
-from controllers.ai3_fraud_guard_controller import check_and_lock_fraud
-from controllers.ai4_nl2sql_chatbot_controller import nl2sql_translate_and_execute
-from controllers.ai5_marketing_controller import run_marketing
-from controllers.ai6_reconcile_controller import reconcile_assistant
-from controllers.ai7_dba_optimizer_controller import diagnostics, run_vacuum
-from controllers.ai8_dispute_controller import evaluate_dispute
-from controllers.etl_cleaner_controller import etl_clean_customers
-from controllers.realtime_notify_listener import listen_for_new_nicks
+from controllers.ai1_vision_ocr import process_game_screenshot
+from controllers.ai2_dynamic_pricing import run_pricing
+from controllers.ai3_fraud_guard import check_and_lock_fraud
+from controllers.ai4_nl2sql_chatbot import nl2sql_translate_and_execute
+from controllers.ai5_smart_marketing import run_marketing
+from controllers.ai6_sepay_reconcile import reconcile_assistant
+from controllers.ai7_auto_dba import diagnostics, run_vacuum
+from controllers.ai8_dispute_arbiter import evaluate_dispute
+from controllers.etl_data_cleaner import etl_clean_customers
+from controllers.event_notify_listener import listen_for_new_nicks
+from scripts.generate_product_images import ensure_product_image
 
 ROOT = Path(__file__).resolve().parent
 for stream in (sys.stdout, sys.stderr):
@@ -66,7 +67,7 @@ async def lifespan(application):
                threading.Thread(target=notification_worker, args=(stop,), daemon=True)]
     for worker in workers:
         worker.start()
-    logging.info('[SERVER] Local demo ready: http://127.0.0.1:8000')
+    logging.info('[SERVER] Local demo ready: http://127.0.0.1:%s', os.getenv('PORT', '8000'))
     yield
     stop.set()
     for worker in workers:
@@ -267,6 +268,8 @@ def create_account(body: NickBody, user=Depends(roles('admin', 'staff'))):
     data = body.model_dump()
     data['gia_ban'] = shop.money(data['gia_ban'])
     data['thong_tin_chi_tiet'].setdefault('ngay_nhap_kho', date.today().isoformat())
+    if not data['anh_dinh_kem_url']:
+        data['anh_dinh_kem_url'] = ensure_product_image(data)
     data['thong_tin_chi_tiet'] = Json(data['thong_tin_chi_tiet'])
     columns = list(data)
     with transaction('ShopAdmin' if user['role'] == 'admin' else 'NhanVienSale') as conn:
@@ -506,15 +509,16 @@ def page_access(request, filename, allowed):
     bearer = request.headers.get('authorization', '').removeprefix('Bearer ')
     user = session_user(bearer or request.cookies.get('shop_page_session'))
     if user is None:
-        return RedirectResponse('/?next=/' + filename, status_code=303,
+        return RedirectResponse('/index.html?error=unauthorized', status_code=303,
                                 headers={'Cache-Control': 'no-store'})
     if user['role'] not in allowed:
-        return HTMLResponse('<h1>403: Không có quyền truy cập</h1><a href="/">Về Client</a>',
-                            status_code=403, headers={'Cache-Control': 'no-store'})
+        return RedirectResponse('/index.html?error=unauthorized', status_code=303,
+                                headers={'Cache-Control': 'no-store'})
     return html_file(filename)
 
 
 @app.get('/', response_class=HTMLResponse)
+@app.get('/index.html', response_class=HTMLResponse)
 def serve_index():
     return html_file('index.html')
 
@@ -527,11 +531,6 @@ def serve_staff(request: Request):
 @app.get('/admin.html', response_class=HTMLResponse)
 def serve_admin(request: Request):
     return page_access(request, 'admin.html', {'admin'})
-
-
-@app.get('/web_chatbot_ui_mock.html', response_class=HTMLResponse)
-def serve_mock():
-    return html_file('web_chatbot_ui_mock.html')
 
 
 class AssetFiles(StaticFiles):
@@ -547,7 +546,8 @@ class AssetFiles(StaticFiles):
 
 # Only assets are mounted: HTML aliases must never bypass the page role checks.
 app.mount('/assets', AssetFiles(directory=str(ROOT / 'views/assets')), name='assets')
-app.mount('/static', AssetFiles(directory=str(ROOT / 'views/assets')), name='static')
+app.mount('/css', AssetFiles(directory=str(ROOT / 'views/css')), name='css')
+app.mount('/js', AssetFiles(directory=str(ROOT / 'views/js')), name='js')
 
 if __name__ == '__main__':
     import uvicorn

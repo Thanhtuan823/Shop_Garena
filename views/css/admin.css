@@ -1,0 +1,6 @@
+.tools { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.tools button { text-align: left; padding: 14px; }
+.tools small { display: block; margin-top: 5px; }
+.diagnostic-card { border-left: 4px solid var(--red); }
+.verdict-card { border: 1px solid var(--orange); }
+@media(max-width:550px) { .tools { grid-template-columns: 1fr; } }

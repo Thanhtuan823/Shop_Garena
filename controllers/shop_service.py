@@ -5,7 +5,7 @@ import uuid
 from decimal import Decimal
 
 from psycopg2.extras import Json, RealDictCursor
-from config.db_connection import transaction
+from config.database import transaction
 
 
 class ShopError(ValueError):

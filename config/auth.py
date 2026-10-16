@@ -7,7 +7,7 @@ import time
 
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from config.db_connection import transaction
+from config.database import transaction
 
 _sessions = {}
 _lock = threading.Lock()

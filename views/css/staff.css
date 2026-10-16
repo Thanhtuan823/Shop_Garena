@@ -1,0 +1,4 @@
+.matching-card { border-left: 4px solid var(--orange); }
+.ocr-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.staff-workspace summary { padding: 8px 0; }
+.stock-thumbnail { width: 64px; border-radius: 5px; vertical-align: middle; margin-right: 8px; }

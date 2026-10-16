@@ -1,0 +1,108 @@
+-- ============================================================================
+-- GARENASHOP_DB / POSTGRESQL 16: BẢO TRÌ MVCC VÀ SAO LƯU LOGIC
+-- ============================================================================
+-- Chạy với chủ sở hữu bảng hoặc superuser sau khi đã chạy database/01..04.
+-- pgAdmin: bật Auto-commit, bôi đen và chạy RIÊNG từng lệnh VACUUM.
+-- Không đặt VACUUM trong BEGIN/COMMIT; không gửi cả hai lệnh trong một batch.
+-- Nếu session đang ở transaction lỗi, chạy ROLLBACK trước khi bảo trì.
+
+-- 1. Thu hồi dead tuples để tái sử dụng và cập nhật thống kê cho planner.
+-- VACUUM thường không trả toàn bộ dung lượng trống về hệ điều hành.
+VACUUM ANALYZE quan_ly_shop.tai_khoan_game;
+
+-- 2. Viết lại bảng để trả dung lượng trống về hệ điều hành.
+-- VACUUM FULL lấy ACCESS EXCLUSIVE lock: chặn cả đọc và ghi trên don_hang.
+-- Chạy trong cửa sổ bảo trì, khi có đủ dung lượng cho bản sao bảng/index.
+-- Đây là thao tác khi cần thu nhỏ bảng, không thay thế autovacuum định kỳ.
+VACUUM FULL quan_ly_shop.don_hang;
+
+-- Cập nhật thống kê bảng đơn hàng sau khi bảo trì (chạy riêng).
+ANALYZE quan_ly_shop.don_hang;
+
+-- ============================================================================
+-- 3. SAO LƯU: CÁC LỆNH CLI DƯỚI ĐÂY CHẠY TRONG POWERSHELL / TERMINAL
+-- ============================================================================
+-- Tài liệu PostgreSQL 16:
+-- https://www.postgresql.org/docs/16/sql-vacuum.html
+-- https://www.postgresql.org/docs/16/app-pgdump.html
+-- https://www.postgresql.org/docs/16/app-pg-dumpall.html
+-- https://www.postgresql.org/docs/16/app-pgrestore.html
+--
+-- Chuẩn bị:
+--   * Dùng bộ công cụ PostgreSQL 16, thêm thư mục bin vào PATH.
+--   * Trong PowerShell, nếu chưa có PATH:
+--       $env:Path = 'C:\Program Files\PostgreSQL\16\bin;' + $env:Path
+--   * Tạo thư mục backup; đường dẫn dưới đây tính từ thư mục gốc dự án:
+--       New-Item -ItemType Directory -Path .\backups -Force
+--   * Dùng -W để nhập mật khẩu tương tác. Tự động hóa có thể dùng pgpass.conf;
+--     không ghi mật khẩu trực tiếp vào command hoặc commit vào mã nguồn.
+--   * Đổi host, port, user và tên file theo môi trường. Kiểm tra $LASTEXITCODE
+--     ngay sau mỗi lệnh; chỉ tiếp tục khi bằng 0.
+--
+-- 3.1. Sao lưu database ở định dạng tar (-F t), gồm schema, dữ liệu, ACL,
+--      owner, index, policy, function, trigger và partition trong database.
+--      pg_dump dùng snapshot nhất quán; không sao lưu role toàn cluster.
+--      Tar không hỗ trợ nén/parallel restore như custom hoặc directory.
+--
+-- pg_dump -h localhost -p 5432 -U postgres -W -d GarenaShop_DB -F t -v -f ".\backups\GarenaShop_DB.tar"
+--
+-- 3.2. Sao lưu các role và memberships toàn cluster, kể cả role NOLOGIN.
+--      File SQL có thể chứa password hash: hạn chế quyền đọc và lưu an toàn.
+--      Roles được dump riêng, không cùng snapshot giao dịch với pg_dump.
+--
+-- pg_dumpall -h localhost -p 5432 -U postgres -W --roles-only -f ".\backups\GarenaShop_roles.sql"
+--
+--      Nếu không muốn lưu password hash, thêm --no-role-passwords; sau restore
+--      phải đặt lại mật khẩu cho role LOGIN bằng quy trình quản lý bí mật.
+--      --roles-only không sao lưu tablespace; dự án hiện dùng tablespace mặc định.
+--      Nếu dùng tablespace tùy chỉnh, chuẩn bị chúng trước khi restore DB.
+--
+-- 3.3. Kiểm tra archive đọc được và xem các object trong Table of Contents:
+--
+-- pg_restore --list ".\backups\GarenaShop_DB.tar"
+--
+--      --list không chứng minh toàn bộ dữ liệu khôi phục được. Cần diễn tập
+--      restore trên database/cluster thử nghiệm và kiểm tra ứng dụng.
+
+-- ============================================================================
+-- 4. KHÔI PHỤC THẢM HỌA: ROLES -> DATABASE -> KIỂM TRA
+-- ============================================================================
+-- Thực hiện trên cluster PostgreSQL 16 đã chuẩn bị, với tài khoản superuser.
+-- Xác nhận đúng máy đích trước khi chạy. Các lệnh mặc định bên dưới tạo DB mới;
+-- không xóa database đang dùng. Dừng ứng dụng/listener trong thời gian restore
+-- để tránh ghi dữ liệu và nhận notification từ trigger được phục hồi.
+--
+-- 4.1. Đọc và kiểm tra GarenaShop_roles.sql trước khi nạp bằng psql.
+--      Cluster mới thường đã có role postgres. Tạo bản roles_restore.sql đã
+--      bỏ riêng câu CREATE ROLE cho role có sẵn sau khi đối chiếu thuộc tính;
+--      giữ/cân nhắc ALTER ROLE và GRANT memberships theo cấu hình máy đích.
+--      Không bỏ qua hàng loạt lỗi "role already exists" hoặc lỗi quyền.
+--      psql đọc SQL role; pg_restore không dùng cho file plain SQL này.
+--
+-- psql -h localhost -p 5432 -U postgres -W -d postgres -v ON_ERROR_STOP=1 -f ".\backups\roles_restore.sql"
+--
+-- 4.2. Tạo database trống bằng template0 và khôi phục vào tên mới để kiểm tra.
+--      Mặc định pg_restore phục hồi owner/ACL: role phải có trước bước này.
+--      --exit-on-error dừng khi lỗi; --single-transaction hoàn tác toàn bộ nếu
+--      restore thất bại. Không thêm --no-owner/--no-acl khi cần giữ RBAC.
+--
+-- createdb -h localhost -p 5432 -U postgres -W -T template0 GarenaShop_DB_restore
+-- pg_restore -h localhost -p 5432 -U postgres -W -d GarenaShop_DB_restore --exit-on-error --single-transaction -v ".\backups\GarenaShop_DB.tar"
+--
+--      Trên máy khôi phục cần tên DB gốc và DB này CHƯA tồn tại, có thể dùng:
+-- pg_restore -h localhost -p 5432 -U postgres -W -d postgres --create --exit-on-error -v ".\backups\GarenaShop_DB.tar"
+--      --create lấy tên DB từ archive; không kết hợp --single-transaction.
+--      Không dùng --clean trên DB đang hoạt động nếu chưa duyệt xóa object.
+--
+-- 4.3. Tái tạo thống kê planner (pg_dump không sao lưu optimizer statistics):
+--
+-- psql -h localhost -p 5432 -U postgres -W -d GarenaShop_DB_restore -v ON_ERROR_STOP=1 -c "ANALYZE;"
+--
+--      Đối chiếu số dòng, FK/CHECK, memberships và quyền cột; chạy thử RLS với
+--      role khách thực, không chỉ superuser; kiểm tra function/trigger/index.
+--      Snapshot trang chủ cần làm mới sau khi đã kiểm tra dữ liệu:
+-- psql -h localhost -p 5432 -U postgres -W -d GarenaShop_DB_restore -v ON_ERROR_STOP=1 -c "REFRESH MATERIALIZED VIEW quan_ly_shop.mv_nick_hot_trang_chu;"
+--
+--      Khi kiểm thử thành công, cập nhật DB_NAME/đích kết nối trong cấu hình
+--      ứng dụng và khởi động lại listener. Backup logic không thay thế PITR
+--      hoặc sao lưu cấu hình PostgreSQL, mã nguồn và file ảnh bên ngoài DB.

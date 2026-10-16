@@ -1,7 +1,10 @@
 .env
 .venv/
+.venv-*/
 __pycache__/
 *.py[cod]
 backups/
 .pytest_cache/
 .runtime/
+tests/artifacts/
+views/assets/products/QA_*.png

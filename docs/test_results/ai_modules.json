@@ -1,0 +1,39 @@
+{
+  "passed": 8,
+  "total": 8,
+  "elapsed_seconds": 11.821,
+  "cases": [
+    {
+      "name": "__main__.AllAiTests.test_01_vision_ocr_actual_and_merge",
+      "passed": true
+    },
+    {
+      "name": "__main__.AllAiTests.test_02_pricing_and_floor",
+      "passed": true
+    },
+    {
+      "name": "__main__.AllAiTests.test_03_fraud_lock",
+      "passed": true
+    },
+    {
+      "name": "__main__.AllAiTests.test_04_nl2sql_containment",
+      "passed": true
+    },
+    {
+      "name": "__main__.AllAiTests.test_05_churn_voucher_idempotency",
+      "passed": true
+    },
+    {
+      "name": "__main__.AllAiTests.test_06_fuzzy_reconcile_no_credit",
+      "passed": true
+    },
+    {
+      "name": "__main__.AllAiTests.test_07_diagnostics_and_vacuum",
+      "passed": true
+    },
+    {
+      "name": "__main__.AllAiTests.test_08_dispute_recommendation_not_payment",
+      "passed": true
+    }
+  ]
+}

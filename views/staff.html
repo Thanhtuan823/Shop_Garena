@@ -1,1 +1,159 @@
-<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Staff · GarenaShop</title><link rel="stylesheet" href="/assets/shop.css"></head><body><header><nav><a class="brand" href="/">GARENA<b>SHOP</b></a><div class="nav-links"><a href="/">Kho nick</a><a href="/staff.html">Staff</a><a href="/admin.html">Admin</a><a href="/docs">API</a></div><div class="session"><span id="welcome">Khách tham quan</span><button id="login-button" class="small">Đăng nhập</button><button id="logout-button" class="small hidden">Đăng xuất</button></div></nav></header><main><section class="hero"><div class="eyebrow">STAFF / Operations workspace</div><h1>Bàn làm việc Staff</h1><p id="role-message">Đăng nhập đúng vai trò để truy cập dữ liệu và thao tác.</p></section><div class="layout"><section><div class="panel"><div class="row between"><h2>Quản lý kho nick</h2><button id="refresh-stock">Làm mới</button></div><div class="scroll"><table><thead><tr><th>Mã nick</th><th>Game</th><th>Giá</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id="stock"></tbody></table></div></div><div class="panel"><h2 id="editor-title">Nhập nick mới</h2><form id="nick-form" class="grid"><label>Mã nick<input name="ma_nick" required maxlength="15"></label><label>Game<select name="ma_game" required id="editor-game"></select></label><label>Giá bán<input name="gia_ban" type="number" min="1" required step="0.01"></label><label>Trạng thái<select name="trang_thai"><option>Chua_ban</option><option>Dang_giu_cho</option><option>Da_ban</option><option>Khoa_tranh_chap</option></select></label><label class="span2">URL ảnh<input name="anh_dinh_kem_url" type="url" maxlength="255"></label><label class="span2">Thuộc tính JSONB<textarea name="thong_tin_chi_tiet">{"ngay_nhap_kho":"2026-10-16","SkinHiem":[]}</textarea></label><div class="span2 actions"><button class="primary" type="submit">Lưu nick</button><button type="button" id="reset-editor">Nhập nick khác</button></div></form><details><summary>AI 1 · Bóc tách ảnh bằng EasyOCR</summary><p class="login-note">Lưu nick trước, rồi chọn ảnh. Lần chạy đầu EasyOCR có thể cần tải model. Metadata ngày nhập kho được giữ nguyên.</p><input id="ocr-file" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Chọn ảnh OCR"><button id="ocr-button" class="primary">Chạy AI 1 OCR</button></details></div><section class="panel"><h2>Đối soát nạp tiền · Bản vắn tắt</h2><form id="transaction-filter" class="row"><label>Mã khách<input id="filter-customer" maxlength="10" placeholder="KH_DEMO"></label><label>Mã giao dịch<input id="filter-event" maxlength="40" placeholder="Nhập mã giao dịch"></label><button type="submit">Tra cứu</button><button type="button" id="refresh-transactions">Tải giao dịch</button></form><div class="scroll"><table><thead><tr><th>Mã GD</th><th>Khách</th><th>Số tiền</th><th>Kênh</th><th>Trạng thái</th><th>Ngày tạo</th></tr></thead><tbody id="staff-transactions"></tbody></table></div><form id="recheck-form" class="row" style="margin-top:14px"><input name="event_id" placeholder="Mã giao dịch" required maxlength="40"><input name="ma_kh" placeholder="Mã khách đã xác minh" required maxlength="10"><button class="primary">Gỡ nghẽn SePay</button></form><p class="login-note">Chỉ duyệt sau khi đối chiếu bằng chứng. Yêu cầu lặp không cộng tiền lần hai.</p></section></section><aside class="sidebar"><section class="panel"><div class="eyebrow">AI 6 / Staff Copilot</div><h2>Trợ lý đối soát SePay</h2><form id="copilot-form"><label>Nội dung chuyển khoản bị sai<textarea id="copilot-input" required maxlength="500" placeholder="Ví dụ: NPA KH_DEMO"></textarea></label><button class="primary">Tìm khách gần khớp</button></form><p class="login-note">Fuzzy matching chỉ gợi ý; không tự động cộng tiền.</p></section><section class="panel"><h2>Kết quả thao tác</h2><pre id="operation-output" class="output" role="status">Sẵn sàng.</pre></section></aside></div></main><dialog id="login-dialog"><div class="row between"><h2>Đăng nhập GarenaShop</h2><button data-close="login-dialog" aria-label="Đóng">×</button></div><p class="muted">Dùng tài khoản và mật khẩu được tạo khi chạy seed demo.</p><form id="login-form"><label>Tài khoản<input id="login-user" required autocomplete="username"></label><label>Mật khẩu<input id="login-password" type="password" required autocomplete="current-password"></label><button class="primary" type="submit">Đăng nhập</button></form></dialog><footer>GARENAS HOP · Demo Fullstack MVC / PostgreSQL / 8 phân hệ AI · Giao dịch nạp tiền là mô phỏng, không nhận tiền thật.</footer><script src="/assets/common.js"></script><script src="/assets/manage.js"></script></body></html>
+<!doctype html>
+<html lang="vi" data-protected="staff">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Staff · GarenaShop</title>
+<link rel="stylesheet" href="/css/common.css">
+<link rel="stylesheet" href="/css/staff.css">
+<script defer src="/js/auth.js">
+</script>
+<script defer src="/js/staff.js">
+</script>
+</head>
+<body>
+<header>
+<nav>
+<a class="brand" href="/" data-nav-roles="guest user staff admin">GARENA<b>SHOP</b>
+</a>
+<div class="session">
+<button id="login-button" class="small">Đăng nhập</button>
+<button id="logout-button" class="small hidden">Đăng xuất</button>
+</div>
+</nav>
+</header>
+<main>
+<section class="hero">
+<div class="eyebrow">STAFF / Operations workspace</div>
+<h1>Bàn làm việc Staff</h1>
+<p id="role-message">Đăng nhập đúng vai trò để truy cập dữ liệu và thao tác.</p>
+</section>
+<div class="layout">
+<section>
+<div class="panel">
+<div class="row between">
+<h2>Quản lý kho nick</h2>
+<button id="refresh-stock">Làm mới</button>
+</div>
+<div class="scroll">
+<table>
+<thead>
+<tr>
+<th>Mã nick</th>
+<th>Game</th>
+<th>Giá</th>
+<th>Trạng thái</th>
+<th>Thao tác</th>
+</tr>
+</thead>
+<tbody id="stock">
+</tbody>
+</table>
+</div>
+</div>
+<div class="panel">
+<h2 id="editor-title">Nhập nick mới</h2>
+<form id="nick-form" class="grid">
+<label>Mã nick<input name="ma_nick" required maxlength="15">
+</label>
+<label>Game<select name="ma_game" required id="editor-game">
+</select>
+</label>
+<label>Giá bán<input name="gia_ban" type="number" min="1" required step="0.01">
+</label>
+<label>Trạng thái<select name="trang_thai">
+<option>Chua_ban</option>
+<option>Dang_giu_cho</option>
+<option>Da_ban</option>
+<option>Khoa_tranh_chap</option>
+</select>
+</label>
+<label class="span2">URL ảnh<input name="anh_dinh_kem_url" type="text" maxlength="255">
+</label>
+<label>Rank<input name="rank" maxlength="100"></label>
+<label>Ngày nhập kho<input name="inventory_date" type="date"></label>
+<label class="span2">Skin nổi bật (cách nhau bằng dấu phẩy)<textarea name="skin_names" maxlength="2000"></textarea></label>
+<label class="span2">Vũ khí (cách nhau bằng dấu phẩy)<textarea name="weapon_names" maxlength="2000"></textarea></label>
+<div id="attribute-preview" class="span2 ocr-tags"></div>
+<div class="span2 actions">
+<button class="primary" type="submit">Lưu nick</button>
+<button type="button" id="reset-editor">Nhập nick khác</button>
+</div>
+</form>
+<details>
+<summary>AI 1 · Bóc tách ảnh bằng EasyOCR</summary>
+<p class="login-note">Lưu nick trước, rồi chọn ảnh. Lần chạy đầu EasyOCR có thể cần tải model. Metadata ngày nhập kho được giữ nguyên.</p>
+<input id="ocr-file" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Chọn ảnh OCR">
+<button id="ocr-button" class="primary">Chạy AI 1 OCR</button>
+</details>
+</div>
+<section class="panel">
+<h2>Đối soát nạp tiền · Bản vắn tắt</h2>
+<form id="transaction-filter" class="row">
+<label>Mã khách<input id="filter-customer" maxlength="10" placeholder="KH_DEMO">
+</label>
+<label>Mã giao dịch<input id="filter-event" maxlength="40" placeholder="Nhập mã giao dịch">
+</label>
+<button type="submit">Tra cứu</button>
+<button type="button" id="refresh-transactions">Tải giao dịch</button>
+</form>
+<div class="scroll">
+<table>
+<thead>
+<tr>
+<th>Mã GD</th>
+<th>Khách</th>
+<th>Số tiền</th>
+<th>Kênh</th>
+<th>Trạng thái</th>
+<th>Ngày tạo</th>
+</tr>
+</thead>
+<tbody id="staff-transactions">
+</tbody>
+</table>
+</div>
+<form id="recheck-form" class="row mt">
+<input name="event_id" placeholder="Mã giao dịch" required maxlength="40">
+<input name="ma_kh" placeholder="Mã khách đã xác minh" required maxlength="10">
+<button class="primary">Gỡ nghẽn SePay</button>
+</form>
+<p class="login-note">Chỉ duyệt sau khi đối chiếu bằng chứng. Yêu cầu lặp không cộng tiền lần hai.</p>
+</section>
+</section>
+<aside class="sidebar">
+<section class="panel">
+<div class="eyebrow">AI 6 / Staff Copilot</div>
+<h2>Trợ lý đối soát SePay</h2>
+<form id="copilot-form">
+<label>Nội dung chuyển khoản bị sai<textarea id="copilot-input" required maxlength="500" placeholder="Ví dụ: NPA KH_DEMO">
+</textarea>
+</label>
+<button class="primary">Tìm khách gần khớp</button>
+</form>
+<p class="login-note">Fuzzy matching chỉ gợi ý; không tự động cộng tiền.</p>
+</section>
+<section class="panel">
+<h2>Kết quả thao tác</h2>
+<div id="operation-output" class="output" role="status">Sẵn sàng.</div>
+</section>
+</aside>
+</div>
+</main>
+<dialog id="login-dialog">
+<div class="row between">
+<h2>Đăng nhập GarenaShop</h2>
+<button data-close="login-dialog" aria-label="Đóng">×</button>
+</div>
+<p class="muted">Dùng tài khoản và mật khẩu được tạo khi chạy seed demo.</p>
+<form id="login-form">
+<label>Tài khoản<input id="login-user" required autocomplete="username">
+</label>
+<label>Mật khẩu<input id="login-password" type="password" required autocomplete="current-password">
+</label>
+<button class="primary" type="submit">Đăng nhập</button>
+</form>
+</dialog>
+<footer>GARENASHOP · Demo Fullstack MVC / PostgreSQL / 8 phân hệ AI · Giao dịch nạp tiền là mô phỏng, không nhận tiền thật.</footer>
+</body>
+</html>

@@ -9,7 +9,7 @@ sys.path.insert(0, str(ROOT))
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='backslashreplace')
 from PIL import Image, ImageDraw, ImageFont
-from controllers.ai1_vision_ocr_controller import extract_game_data
+from controllers.ai1_vision_ocr import extract_game_data
 
 
 def main():

@@ -1,0 +1,20 @@
+.hero { border-radius: 16px; padding: 30px; margin-bottom: 24px; background: linear-gradient(90deg,#121212ef,#121212af),url(/assets/banners/hero_banner.png) center/cover; }
+.cards { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.card { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--panel); }
+.card-body { padding: 18px; }
+.card:hover { border-color: #a54d3a; }
+.price { font-size: 23px; font-weight: 800; color: var(--orange); }
+.filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.filters>* { flex: 1; }
+input[type=range] { padding: 0; accent-color: var(--red); width: 100%; }
+.chatlog { height: 440px; overflow: auto; display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.bubble { background: #27272d; border: 1px solid #3c3c44; border-radius: 10px; padding: 12px; font-size: 12px; overflow-wrap: anywhere; }
+.bubble.user { background: #e509141c; border-color: #e5091444; margin-left: 30px; white-space: pre-wrap; }
+.chatlog .cards { grid-template-columns: 1fr; }
+.bubble .price { font-size: 19px; }
+.qr { text-align: center; padding: 15px; }
+@media(max-width:550px) {
+  .cards { grid-template-columns: 1fr; }
+  .filters { display: grid; grid-template-columns: 1fr 1fr; }
+  .filters>:nth-child(2) { grid-column: 1/-1; grid-row: 2; }
+}
